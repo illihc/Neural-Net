@@ -153,9 +153,12 @@ private:
 	double NetEstimateErrorAverage = 0.0;
 	double ErrorSmothingFactor = 100.0;
 
-public:
-	NeuralNet(vector<unsigned>& topology)
+	//Create a new Net
+	void CreateNet(vector<unsigned>& topology)
 	{
+		//Emptying the Layers, which might exist
+		Layers.clear();
+
 		//Getting the information, how many Layers there will be
 		unsigned int LayerAmount = topology.size();
 
@@ -187,7 +190,12 @@ public:
 			//Set the bias neurons value to 1
 			Layers.back().back().SetOutputValue(1);
 		}
+	}
 
+public:
+	NeuralNet(vector<unsigned>& topology)
+	{
+		CreateNet(topology);
 	}
 
 	//Putting inputs into the net
@@ -269,15 +277,11 @@ public:
 	}
 
 	//Getting the output of the net
-	const void GetResult(vector<double>& ResultValues)
+	const void GetResult()
 	{
-		//clearing the Resultvalues container
-		ResultValues.clear();
-
-		//Filling the container with the output of each neuron in the last Layer
+		//printing the output of each neuron in the last Layer to the console
 		for (unsigned NeuronCount = 0; NeuronCount < Layers.back().size(); NeuronCount++)
 		{
-			ResultValues.push_back(Layers.back()[NeuronCount].GetOutputValue());
 			std::cout << Layers.back()[NeuronCount].GetOutputValue() << std::endl;
 		}
 	}
@@ -297,7 +301,7 @@ public:
 		}
 	}
 
-	void SaveNeuronValues(std::fstream &NeuronSaveFile, std::fstream &EdgesSaveFile)
+	void SaveNeuronValues(std::fstream& NeuronSaveFile, std::fstream& EdgesSaveFile)
 	{
 		NeuronSaveFile.open("NeuronSaveFile.txt", std::ios::out);
 		EdgesSaveFile.open("EdgesSaveFile.txt", std::ios::out);
@@ -311,10 +315,6 @@ public:
 				//Write the neuronvalue to an SaveFile
 				if (NeuronSaveFile.is_open())
 					NeuronSaveFile << Layers[LayerCount][NeuronCount].GetOutputValue() << "\n";
-
-				//Write a space to the EdgeSaveFile, so we know, when a new Neurons Weights are beginning, while loadíng
-				if (EdgesSaveFile.is_open())
-					EdgesSaveFile << "#" << "\n";
 
 				//For each weight the neuron has
 				for (unsigned EdgeCount = 0; EdgeCount < Layers[LayerCount][NeuronCount].OutputsWeights.size(); EdgeCount++)
@@ -330,21 +330,69 @@ public:
 		NeuronSaveFile.close();
 		EdgesSaveFile.close();
 	}
+
+	void LoadTopologyStructure(std::fstream& TopologyFile)
+	{
+		TopologyFile.open("TopologySaveFile.txt", std::ios::in);
+		vector<unsigned> TopologyValues;
+
+		std::string FileLine;
+		//looping through the lines and saving them into an vector
+		while (std::getline(TopologyFile, FileLine) && TopologyFile.is_open())
+		{
+			TopologyValues.push_back(std::stoi(FileLine));
+		}
+
+		//Create the net
+		CreateNet(TopologyValues);
+	}
+
+	void LoadNeuronAndEdgeValues(std::fstream& NeuronFile, std::fstream& EdgeFile)
+	{
+		vector<double> NeuronValues;
+		vector<double> EdgeValues;
+
+		//opening the files
+		NeuronFile.open("NeuronSaveFile.txt", std::ios::in);
+		EdgeFile.open("EdgesSaveFile.txt", std::ios::in);
+
+		std::string FileLine;
+		//reading the NeuronValues into the vector
+		while (std::getline(NeuronFile, FileLine) && NeuronFile.is_open())
+		{
+			NeuronValues.push_back(std::stoi(FileLine));
+		}
+		//reading the edgevalues into a the vector
+		while (std::getline(EdgeFile, FileLine) && EdgeFile.is_open())
+		{
+			EdgeValues.push_back(std::stoi(FileLine));
+		}
+
+
+		unsigned NeuronValueCount = 0;
+		unsigned EdgeValueCount = 0;
+
+		for (unsigned LayerCount = 0; LayerCount < Layers.size(); LayerCount++)
+		{
+			for (unsigned NeuronCount = 0; NeuronCount < Layers[LayerCount].size(); NeuronCount++)
+			{
+				//Setting the current neurons value
+				Layers[LayerCount][NeuronCount].SetOutputValue(NeuronValues[NeuronValueCount]);
+				NeuronValueCount++;
+
+				//looping through each edge, the neuron has
+				for (unsigned EdgeCount = 0; EdgeCount < Layers[LayerCount][NeuronCount].OutputsWeights.size(); EdgeCount++)
+				{
+					Layers[LayerCount][NeuronCount].OutputsWeights[EdgeCount].Weight = EdgeValues[EdgeValueCount];
+					EdgeValueCount++;
+				}
+			}
+		}
+	}
 };
 
-int main()
+void TrainNet(vector<double>& InputValues, vector<double>& TargetValues, NeuralNet& Net)
 {
-	//The Lenght of topology holds the information how many columns of neurons = layers there will be
-	//The value of each element of topology will hold the information, how many neurons there will be in the particulas layer
-	vector<unsigned> Topology = { 2, 4, 1 };
-
-	vector<double> InputValues;
-	vector<double> TargetValues;
-	vector<double> ResultValues;
-
-	//Creating the neural net
-	NeuralNet Net(Topology);
-
 	std::fstream InputValueFile;
 	std::fstream TargetValueFile;
 
@@ -354,12 +402,12 @@ int main()
 	if (!InputValueFile.is_open())
 	{
 		std::cout << "Error: InputValueFile isn´t opened!";
-		return 1;
+		return;
 	}
 	else if (!TargetValueFile.is_open())
 	{
 		std::cout << "Error: TargetValueFile isn´t opened!";
-		return 1;
+		return;
 	}
 
 
@@ -424,20 +472,54 @@ int main()
 
 		Net.FeedForward(InputValues);
 		Net.DoBackProp(TargetValues);
-		Net.GetResult(ResultValues);
+		Net.GetResult();
 
 		CurrentTrainingStep++;
 	}
+}
 
-	//Saving the data
+void SaveNet(NeuralNet& Net)
+{
 	std::fstream TopologySaveFile;
 	std::fstream NeuronSaveFile;
 	std::fstream EdgesSaveFile;
 
 	Net.SaveTopologyStructure(TopologySaveFile);
 	Net.SaveNeuronValues(NeuronSaveFile, EdgesSaveFile);
+}
+
+void UseNet(NeuralNet& Net ,vector<double>& InputValues)
+{
+	Net.FeedForward(InputValues);
+	Net.GetResult();
+}
+
+int main()
+{
+	vector<unsigned> NetTopology = { 2, 4, 1 };
+
+	//Creating the neural net
+	NeuralNet Net(NetTopology);
+
+	vector<double> InputValues;
+	vector<double> TargetValues;
+
+	std::cout << "If you want to train the net, press 1." << std::endl;
+	std::cout << "If you want to use a net, press 2." << std::endl;
+
+	unsigned short UserInput;
+	std::cin >> UserInput;
+
+	if (UserInput == 1)
+	{
+		std::cout << "The training of the net has started...";
+		TrainNet(InputValues, TargetValues, Net);
+
+	}
+	else
+	{
+
+	}
 
 	return 0;
 }
-
-//Das man einen Container für die Resultvalues braucht, ist nicht unbedingt nötig. Später entfernen
