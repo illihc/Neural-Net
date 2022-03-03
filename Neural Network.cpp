@@ -166,7 +166,6 @@ private:
 		{
 			//Creating and adding a new Layer
 			Layers.push_back(Layer());
-			std::cout << "Added a Layer" << std::endl;
 
 			//Adding a variable, which holds the information in which Layer we are currently
 			unsigned NeuronOutputCount;
@@ -184,7 +183,6 @@ private:
 			{
 				//Getting the Layer, which was last added and adding a neuron to it
 				Layers.back().push_back(Neuron(NeuronOutputCount, NeuronNumber));
-				std::cout << "Added a Neuron" << std::endl;
 			}
 
 			//Set the bias neurons value to 1
@@ -282,7 +280,13 @@ public:
 		//printing the output of each neuron in the last Layer to the console
 		for (unsigned NeuronCount = 0; NeuronCount < Layers.back().size(); NeuronCount++)
 		{
-			std::cout << Layers.back()[NeuronCount].GetOutputValue() << std::endl;
+			//Not printing the bias neuron
+			if (NeuronCount == Layers.back().size() - 1)
+			{
+				return;
+			}
+
+			std::cout << "Your values are: " << Layers.back()[NeuronCount].GetOutputValue() << std::endl;
 		}
 	}
 
@@ -290,6 +294,7 @@ public:
 	void SaveTopologyStructure(std::fstream &TopologySaveFile)
 	{
 		TopologySaveFile.open("TopologySaveFile.txt", std::ios::out);
+		TopologySaveFile.clear();
 
 		for (int LayerCount = 0; LayerCount < Layers.size(); LayerCount++)
 		{
@@ -305,6 +310,8 @@ public:
 	{
 		NeuronSaveFile.open("NeuronSaveFile.txt", std::ios::out);
 		EdgesSaveFile.open("EdgesSaveFile.txt", std::ios::out);
+		NeuronSaveFile.clear();
+		EdgesSaveFile.clear();
 
 		//For each Layer 
 		for (int LayerCount = 0; LayerCount < Layers.size(); LayerCount++)
@@ -391,13 +398,15 @@ public:
 	}
 };
 
-void TrainNet(vector<double>& InputValues, vector<double>& TargetValues, NeuralNet& Net)
+void TrainNet(vector<double>& InputValues, vector<double>& TargetValues, NeuralNet& Net, unsigned _TrainingSteps)
 {
+	std::cout << "Started Training." << std::endl;
+
 	std::fstream InputValueFile;
 	std::fstream TargetValueFile;
 
-	InputValueFile.open("InputValueFile.txt", std::ios::in);
 	TargetValueFile.open("TargetValueFile.txt", std::ios::in);
+	InputValueFile.open("TrainingInputValues.txt", std::ios::in);
 
 	if (!InputValueFile.is_open())
 	{
@@ -413,7 +422,7 @@ void TrainNet(vector<double>& InputValues, vector<double>& TargetValues, NeuralN
 
 	std::string FileLine;
 
-	unsigned MaxTrainingsSteps = 2;
+	unsigned MaxTrainingsSteps = _TrainingSteps;
 	unsigned CurrentTrainingStep = 0;
 	unsigned const InputLineSkipper = 11;
 	unsigned const OutputLineSkipper = 3;
@@ -476,6 +485,8 @@ void TrainNet(vector<double>& InputValues, vector<double>& TargetValues, NeuralN
 
 		CurrentTrainingStep++;
 	}
+
+	std::cout << "Ended Training." << std::endl;
 }
 
 void SaveNet(NeuralNet& Net)
@@ -496,30 +507,45 @@ void UseNet(NeuralNet& Net ,vector<double>& InputValues)
 
 int main()
 {
-	vector<unsigned> NetTopology = { 2, 4, 1 };
+	vector<double> InputValues;
+	vector<double> TrainingInputValues;
+	vector<double> TargetValues;
+	//All files to load and the net
+	std::fstream NeuronFile;
+	std::fstream EdgeFile;
+	std::fstream TopologyFile;
+	std::fstream InputValueFile;
+
+	InputValueFile.open("InputValueFile.txt", std::ios::in);
+	if (!InputValueFile.is_open())
+	{
+		std::cout << "Error: InputValueFile isn´t opened!";
+		return 1;
+	}
+	std::string Line;
+	while (std::getline(InputValueFile, Line))
+	{
+		InputValues.push_back(std::stoi(Line));
+	}
+
+	//Assigning the topology of the neural net
+	vector<unsigned> NetTopology = { 11, 8, 3 };
 
 	//Creating the neural net
 	NeuralNet Net(NetTopology);
 
-	vector<double> InputValues;
-	vector<double> TargetValues;
+	const unsigned TrainingIterations = 2;
+	
+	//Loading the net
+	Net.LoadNeuronAndEdgeValues(NeuronFile, EdgeFile);
 
-	std::cout << "If you want to train the net, press 1." << std::endl;
-	std::cout << "If you want to use a net, press 2." << std::endl;
+	//Training the net
+	TrainNet(TrainingInputValues, TargetValues, Net, TrainingIterations);
 
-	unsigned short UserInput;
-	std::cin >> UserInput;
+	//saving the net
+	SaveNet(Net);
 
-	if (UserInput == 1)
-	{
-		std::cout << "The training of the net has started...";
-		TrainNet(InputValues, TargetValues, Net);
-
-	}
-	else
-	{
-
-	}
 
 	return 0;
 }
+
